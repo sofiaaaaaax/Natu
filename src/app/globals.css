@@ -1,0 +1,358 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-natu-light font-sans text-slate-800 antialiased;
+}
+
+::selection {
+  @apply bg-natu-ochre/40 text-natu-dark;
+}
+
+@layer components {
+  /* ---------------------------------------------------------------- */
+  /* Botones y formularios                                            */
+  /* ---------------------------------------------------------------- */
+  .natu-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-natu-ochre focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .natu-btn-primary {
+    @apply natu-btn bg-natu-ochre text-natu-dark shadow-lg shadow-natu-ochre/25 hover:-translate-y-0.5 hover:bg-[#e0b487];
+  }
+
+  .natu-btn-green {
+    @apply natu-btn bg-natu-green text-white shadow-lg shadow-natu-green/25 hover:-translate-y-0.5 hover:bg-natu-dark;
+  }
+
+  .natu-btn-outline {
+    @apply natu-btn border-2 border-white/80 bg-white/5 text-white backdrop-blur hover:-translate-y-0.5 hover:bg-white hover:text-natu-green;
+  }
+
+  .natu-btn-ghost {
+    @apply natu-btn border border-slate-300 bg-white text-slate-700 hover:border-natu-green hover:text-natu-green;
+  }
+
+  .natu-input {
+    @apply w-full rounded-xl border-2 border-natu-sage/30 bg-white/95 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-natu-green focus:ring-4 focus:ring-natu-green/15;
+  }
+
+  .natu-label {
+    @apply mb-2 block text-left text-xs font-bold uppercase tracking-wider text-slate-600;
+  }
+
+  .natu-card {
+    @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-natu-soft;
+  }
+
+  .natu-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-natu-ochre/50 bg-natu-ochre/15 px-3 py-1 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-natu-green;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Página informativa                                               */
+  /* ---------------------------------------------------------------- */
+  .info-card {
+    @apply mb-6 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-natu-soft sm:p-8;
+  }
+
+  .info-card h2 {
+    @apply mb-4 flex items-center gap-3 border-b-2 border-slate-100 pb-3 text-xl font-extrabold leading-tight text-slate-900 sm:text-2xl;
+  }
+
+  .info-num {
+    @apply inline-grid h-9 w-9 flex-none place-items-center rounded-full bg-orange-100 text-sm font-extrabold text-orange-700;
+  }
+
+  .info-card h3 {
+    @apply mb-2 mt-6 text-base font-bold text-orange-700;
+  }
+
+  .info-card p {
+    @apply mb-3 text-[0.95rem] leading-7 text-slate-700;
+  }
+
+  .info-card ul,
+  .info-card ol {
+    @apply mb-4 list-disc space-y-1.5 pl-6 text-[0.95rem] leading-7 text-slate-700;
+  }
+
+  .info-card strong {
+    @apply font-bold text-slate-900;
+  }
+
+  .info-card a {
+    @apply text-blue-700 underline-offset-2 hover:underline;
+  }
+
+  .info-note {
+    @apply my-4 rounded-xl border-l-4 border-orange-500 bg-orange-50 px-5 py-4 text-sm leading-7 text-orange-900;
+  }
+
+  .info-alert {
+    @apply my-4 rounded-xl border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm leading-7 text-red-900;
+  }
+
+  .info-table-wrap {
+    @apply my-4 overflow-x-auto rounded-xl border border-slate-200;
+  }
+
+  .info-table {
+    @apply w-full min-w-[520px] border-collapse text-sm;
+  }
+
+  .info-table th {
+    @apply bg-slate-900 px-4 py-3 text-left text-[0.72rem] font-bold uppercase tracking-wider text-white;
+  }
+
+  .info-table td {
+    @apply border-b border-slate-200 px-4 py-3 align-top leading-6 text-slate-700;
+  }
+
+  .info-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .info-table tbody tr:nth-child(even) td {
+    @apply bg-slate-50;
+  }
+
+  .info-paso {
+    @apply rounded-2xl border border-slate-200 bg-slate-50 p-5;
+  }
+
+  .info-paso h3 {
+    @apply mb-3 mt-0 text-base font-extrabold text-slate-900;
+  }
+
+  .info-paso ul {
+    @apply mb-0 pl-5 text-sm leading-6;
+  }
+
+  .info-glosario {
+    @apply grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2;
+  }
+
+  .info-glosario li {
+    @apply m-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700;
+  }
+
+  .info-glosario strong {
+    @apply mb-1 block text-slate-900;
+  }
+
+  .info-fuentes {
+    @apply m-0 list-none p-0;
+  }
+
+  .info-fuentes li {
+    @apply m-0 border-b border-dashed border-slate-300 py-3;
+  }
+
+  .info-fuentes li:last-child {
+    @apply border-b-0;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Prototipo                                                        */
+  /* ---------------------------------------------------------------- */
+  .proto-panel {
+    @apply flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm;
+  }
+
+  .proto-panel h3 {
+    @apply mb-3 text-sm font-extrabold text-slate-800;
+  }
+
+  .proto-controls {
+    @apply mb-3 flex flex-wrap items-center gap-3;
+  }
+
+  .proto-controls label {
+    @apply flex items-center gap-2 text-[0.72rem] font-bold text-slate-600;
+  }
+
+  .proto-controls input[type="range"] {
+    @apply w-24 accent-indigo-500;
+  }
+
+  .proto-controls select {
+    @apply rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700;
+  }
+
+  .proto-btn {
+    @apply rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:-translate-y-px hover:border-slate-400 disabled:opacity-60;
+  }
+
+  .proto-btn-primary {
+    @apply border-transparent bg-gradient-to-r from-rose-500 to-red-600 text-white hover:brightness-110;
+  }
+
+  .proto-btn-active {
+    @apply border-transparent bg-indigo-500 text-white;
+  }
+
+  .proto-readout {
+    @apply min-w-[92px] flex-1 rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5;
+  }
+
+  .proto-readout .r-label {
+    @apply mb-0.5 block text-[0.58rem] font-extrabold uppercase tracking-wider text-slate-500;
+  }
+
+  .proto-readout .r-value {
+    @apply font-mono text-sm font-bold text-slate-800;
+  }
+
+  .proto-readout.alarm {
+    @apply border-red-300 bg-red-50;
+  }
+
+  .proto-readout.alarm .r-value {
+    @apply text-red-600;
+  }
+
+  .proto-led {
+    @apply h-2 w-5 rounded-sm border border-slate-400/40 bg-slate-400/20 transition;
+  }
+
+  .proto-led.on {
+    @apply border-green-500 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.7)];
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Mapa                                                             */
+  /* ---------------------------------------------------------------- */
+  .leaflet-container {
+    @apply h-full w-full font-sans;
+    background: #e8eef2;
+  }
+
+  .leaflet-control-attribution {
+    font-size: 9px !important;
+  }
+
+  .epicentro-marker {
+    animation: natu-marker-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes natu-marker-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.18);
+    }
+  }
+
+  .seismic-wave {
+    position: absolute;
+    z-index: 800;
+    border: 2px solid rgba(244, 63, 94, 0.6);
+    border-radius: 9999px;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    animation: natu-wave-expand 2s ease-out forwards;
+  }
+
+  @keyframes natu-wave-expand {
+    0% {
+      width: 0;
+      height: 0;
+      opacity: 1;
+    }
+    100% {
+      width: var(--wave-size, 300px);
+      height: var(--wave-size, 300px);
+      opacity: 0;
+    }
+  }
+
+  .map-shaking {
+    animation: natu-shake 0.35s linear infinite;
+  }
+
+  @keyframes natu-shake {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    10% {
+      transform: translate(-2px, 2px);
+    }
+    20% {
+      transform: translate(2px, -2px);
+    }
+    30% {
+      transform: translate(-2px, -2px);
+    }
+    40% {
+      transform: translate(2px, 2px);
+    }
+    50% {
+      transform: translate(-2px, 2px);
+    }
+    60% {
+      transform: translate(2px, -2px);
+    }
+    70% {
+      transform: translate(-2px, -2px);
+    }
+    80% {
+      transform: translate(2px, 2px);
+    }
+    90% {
+      transform: translate(2px, -2px);
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Sensor móvil                                                     */
+  /* ---------------------------------------------------------------- */
+  .sensor-shell {
+    background: radial-gradient(circle at 50% 15%, #2c3e35 0%, #111a15 100%);
+  }
+
+  .sensor-meter-active {
+    @apply border-red-400 shadow-[0_0_35px_rgba(255,107,107,0.35)];
+  }
+
+  .sensor-voltage {
+    @apply text-5xl font-extrabold tabular-nums text-natu-ochre transition-colors duration-150 sm:text-6xl;
+  }
+
+  .sensor-meter-active .sensor-voltage {
+    @apply text-red-400;
+    text-shadow: 0 0 20px rgba(255, 107, 107, 0.7);
+  }
+}
+
+/* Scrollbar sutil */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eef2ed;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a4a478;
+  border: 2px solid #eef2ed;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2c3e35;
+}
