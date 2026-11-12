@@ -997,7 +997,7 @@
                     <div class="demo-controls sismo-controls">
                         <button type="button" id="btn-sismo">🌋 Simular sismo</button>
                         <button type="button" id="btn-reset" class="secundario">🔄 Reiniciar</button>
-                        <button type="button" id="btn-conectar-celular" class="secundario btn-celular" title="Conectar acelerómetro de celular por Wi-Fi">📱 Celular <span id="dot-celular" class="dot-status"></span></button>
+                        <button type="button" id="btn-conectar-celular" class="secundario btn-celular" title="Conectar el acelerómetro del celular a esta Diapositiva 8">📱 Celular <span id="dot-celular" class="dot-status"></span></button>
                         <label>Intensidad
                             <input type="range" id="rango-sismo" min="0" max="100" step="1" value="80">
                             <span id="val-sismo">80 %</span>
@@ -1043,6 +1043,7 @@
                     <p class="demo-legend">
                         El <strong>comparador</strong> responde al instante; la
                         <strong>alarma</strong> se activa en tiempo real al superar el umbral y se apaga de inmediato al descender.
+                        Conecta el <strong>celular</strong> para que esta traza reproduzca su movimiento.
                     </p>
                 </div>
 
@@ -1132,12 +1133,12 @@
                 <div class="modal-contenido">
                     <button type="button" class="btn-cerrar-modal" id="btn-cerrar-modal" title="Cerrar">&times;</button>
                     <h3>📱 Conectar Celular al Sismógrafo</h3>
-                    <p class="modal-sub">Escanea con la cámara de tu celular en la misma red Wi-Fi:</p>
+                    <p class="modal-sub">Escanea con la cámara de tu celular o abre este enlace:</p>
                     <div class="qr-wrapper">
                         <img id="img-qr-celular" src="" alt="Código QR Sensor Celular" width="180" height="180">
                     </div>
-                    <div class="url-destacada" id="url-texto-celular">http://localhost:3000/sensor/control.html</div>
-                    <p class="modal-tip">💡 Al sacudir o mover el celular, el sismograma responderá en vivo y activará la alarma cuando supere el umbral.</p>
+                    <a class="url-destacada" id="url-texto-celular" href="https://natu-six.vercel.app/sensor" target="_blank" rel="noopener noreferrer">https://natu-six.vercel.app/sensor</a>
+                    <p class="modal-tip">💡 Al sacudir o mover el celular, el sismograma de esta <strong>Diapositiva 8</strong> responderá en vivo y activará la alarma cuando supere el umbral.</p>
                 </div>
             </div>
         </div>
@@ -1221,6 +1222,21 @@
                 currentSlideSpan.textContent = currentSlideIndex + 1;
             }
 
+            // Permite abrir directo la Diapositiva 8 desde el celular:
+            // .../Expo.html#slide-demo
+            function showSlideFromHash() {
+                const id = window.location.hash.replace('#', '');
+                if (!id) return false;
+
+                for (let i = 0; i < slides.length; i++) {
+                    if (slides[i].id === id) {
+                        showSlide(i);
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             document.addEventListener('keydown', function(event) {
                 if (event.key === 'ArrowRight') {
                     showSlide(currentSlideIndex + 1);
@@ -1229,6 +1245,8 @@
                 }
             });
 
+            window.addEventListener('hashchange', showSlideFromHash);
+            showSlideFromHash();
             showSlide(currentSlideIndex);
         });
     </script>
@@ -1307,6 +1325,13 @@
             var voltajeCelular = 0;
             var ultimaLecturaCelular = 0;
             var urlControlMovil = '';
+            var URL_MOVIL_PREDETERMINADA = 'https://natu-six.vercel.app/sensor';
+            var URL_API_INFO_PUBLICA = 'https://natu-six.vercel.app/api/info';
+            var supabaseCelular = null;
+            var canalSupabaseCelular = null;
+            var conexionSupabaseIniciada = false;
+            var historialCelular = [];
+            var referenciaCelular = 0;
 
             var R_LED = 330;
             var R_BUZZER = 120;
@@ -1314,16 +1339,58 @@
             var VENTANA = 6;             // segundos visibles en el sismógrafo
 
             // ---------- Señal del sismógrafo ----------
+            // Guarda cada muestra del acelerómetro del celular para dibujar
+            // en la Diapositiva 8 el mismo movimiento que se hace en el teléfono.
+            function registrarMovimientoCelular(valor) {
+                var v = Math.max(0, Math.min(5, valor));
+                var ahora = performance.now();
+                var t = ahora / 1000;
+
+                voltajeCelular = v;
+                ultimaLecturaCelular = ahora;
+                // Referencia lenta: al inclinar el celular sin moverlo, la traza
+                // vuelve al centro; al agitarlo, la diferencia marca el movimiento.
+                referenciaCelular = referenciaCelular * 0.86 + v * 0.14;
+
+                historialCelular.push({ t: t, v: v, ref: referenciaCelular });
+                while (historialCelular.length && historialCelular[0].t < t - 3) {
+                    historialCelular.shift();
+                }
+
+                if (dotCelular) {
+                    dotCelular.classList.add('activo');
+                    dotCelular.title = 'Celular enlazado a la Diapositiva 8';
+                }
+            }
+
+            function muestraCelularEn(t) {
+                if (!historialCelular.length) return null;
+                var ultima = historialCelular[historialCelular.length - 1];
+                if (Math.abs(t - ultima.t) > 0.6) return null;
+
+                var mejor = ultima;
+                var mejorDistancia = Math.abs(ultima.t - t);
+                for (var i = historialCelular.length - 2; i >= 0; i--) {
+                    var distancia = Math.abs(historialCelular[i].t - t);
+                    if (distancia < mejorDistancia) {
+                        mejor = historialCelular[i];
+                        mejorDistancia = distancia;
+                    }
+                }
+                return mejor;
+            }
+
             function valorSenal(t) {
                 var ruido = 0.07 * Math.sin(2 * Math.PI * 0.7 * t)
                           + 0.05 * Math.sin(2 * Math.PI * 1.9 * t + 1.1)
                           + 0.03 * Math.sin(2 * Math.PI * 3.1 * t + 0.4);
                 var valor = ruido;
 
-                // Señal del acelerómetro del celular en tiempo real
-                var dtCelular = performance.now() - ultimaLecturaCelular;
-                if (dtCelular < 400 && voltajeCelular > 0.05) {
-                    valor += voltajeCelular * (0.85 * Math.sin(2 * Math.PI * 3.6 * t) + 0.25 * Math.sin(2 * Math.PI * 7.2 * t + 0.5));
+                // Movimiento real del acelerómetro del celular.
+                var muestraCelular = muestraCelularEn(t);
+                if (muestraCelular) {
+                    var peso = Math.max(0, 1 - (performance.now() - ultimaLecturaCelular) / 600);
+                    valor += (muestraCelular.v - muestraCelular.ref) * 1.35 * peso;
                 }
 
                 if (sismoInicio >= 0) {
@@ -1612,6 +1679,13 @@
                     ctx.font = 'bold 10px Montserrat, sans-serif';
                     ctx.fillText('SISMO EN CURSO', w / 2 - 42, 14);
                 }
+
+                // Indicador de que la traza viene del acelerómetro del celular.
+                if (historialCelular.length && performance.now() - ultimaLecturaCelular < 500) {
+                    ctx.fillStyle = '#7bd88f';
+                    ctx.font = 'bold 9px Montserrat, sans-serif';
+                    ctx.fillText('● CELULAR EN VIVO', 72, 12);
+                }
             }
 
             // ---------- Bucle de simulación ----------
@@ -1704,24 +1778,104 @@
             });
 
             // ---------- Conexión Móvil y Código QR ----------
-            function cargarInfoServidor() {
-                fetch('/api/info')
+            function actualizarEnlaceCelular(url) {
+                urlControlMovil = url;
+                if (urlTextoCelular) {
+                    urlTextoCelular.textContent = url;
+                    if (urlTextoCelular.tagName === 'A') urlTextoCelular.href = url;
+                }
+                if (imgQr) {
+                    imgQr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(url);
+                }
+            }
+
+            function aplicarInfoCelular(info) {
+                var url = info && info.urlMovil ? info.urlMovil : '';
+                // Si la API responde con localhost, el celular no podría
+                // entrar; usamos el dominio público de la exposición.
+                if (!url || /localhost|127\.0\.0\.1/i.test(url)) {
+                    url = URL_MOVIL_PREDETERMINADA;
+                }
+                actualizarEnlaceCelular(url);
+
+                if (info && info.supabaseUrl && info.supabaseAnonKey) {
+                    conectarSupabaseCelular(info.supabaseUrl, info.supabaseAnonKey);
+                    return true;
+                }
+                return false;
+            }
+
+            // Si se abre Expo.html en local (sin variables de Supabase),
+            // toma la configuración pública del despliegue de Vercel para
+            // que el celular y la Diapositiva 8 sí queden enlazados.
+            function cargarInfoRemota() {
+                return fetch(URL_API_INFO_PUBLICA, { cache: 'no-store' })
                     .then(function (r) { return r.json(); })
                     .then(function (info) {
-                        if (info && info.urlMovil) {
-                            urlControlMovil = info.urlMovil;
-                            if (urlTextoCelular) urlTextoCelular.textContent = info.urlMovil;
-                            if (imgQr) {
-                                imgQr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(info.urlMovil);
-                            }
-                        }
+                        return aplicarInfoCelular(info);
+                    });
+            }
+
+            function cargarInfoServidor() {
+                fetch('/api/info', { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (info) {
+                        if (aplicarInfoCelular(info)) return;
+                        cargarInfoRemota().then(function (ok) {
+                            if (!ok) conectarWebSocketCelular();
+                        }).catch(function () {
+                            conectarWebSocketCelular();
+                        });
                     })
                     .catch(function () {
-                        var fallback = 'http://' + (location.hostname || 'localhost') + ':3000/sensor/control.html';
-                        if (urlTextoCelular) urlTextoCelular.textContent = fallback;
-                        if (imgQr) {
-                            imgQr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(fallback);
-                        }
+                        cargarInfoRemota().then(function (ok) {
+                            if (!ok) {
+                                actualizarEnlaceCelular(URL_MOVIL_PREDETERMINADA);
+                                conectarWebSocketCelular();
+                            }
+                        }).catch(function () {
+                            actualizarEnlaceCelular(URL_MOVIL_PREDETERMINADA);
+                            conectarWebSocketCelular();
+                        });
+                    });
+            }
+
+            // La Diapositiva 8 escucha el acelerómetro del celular por el mismo
+            // canal de Supabase Realtime que usa la página /sensor.
+            function conectarSupabaseCelular(url, key) {
+                if (conexionSupabaseIniciada) return;
+                conexionSupabaseIniciada = true;
+
+                import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
+                    .then(function (mod) {
+                        supabaseCelular = mod.createClient(url, key, {
+                            auth: { persistSession: false, autoRefreshToken: false }
+                        });
+                        canalSupabaseCelular = supabaseCelular.channel('seismic-sensor');
+                        canalSupabaseCelular
+                            .on('broadcast', { event: 'motion' }, function (mensaje) {
+                                var data = mensaje && mensaje.payload;
+                                if (!data || typeof data.v !== 'number') return;
+                                registrarMovimientoCelular(data.v);
+                            })
+                            .subscribe(function (estado) {
+                                if (estado === 'SUBSCRIBED') {
+                                    if (dotCelular) {
+                                        dotCelular.classList.add('activo');
+                                        dotCelular.title = 'Diapositiva 8 lista: esperando la señal del celular';
+                                    }
+                                } else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
+                                    if (dotCelular) {
+                                        dotCelular.classList.remove('activo');
+                                        dotCelular.title = 'Reintentando conexión con el celular';
+                                    }
+                                }
+                            });
+                    })
+                    .catch(function () {
+                        // Si el CDN no está disponible, conservamos el WebSocket local.
+                        conexionSupabaseIniciada = false;
+                        conectarWebSocketCelular();
                     });
             }
 
@@ -1740,9 +1894,7 @@
                         try {
                             var data = JSON.parse(ev.data);
                             if (data && typeof data.v === 'number') {
-                                voltajeCelular = Math.max(0, Math.min(5, data.v));
-                                ultimaLecturaCelular = performance.now();
-                                if (dotCelular) dotCelular.classList.add('activo');
+                                registrarMovimientoCelular(data.v);
                             }
                         } catch (err) {}
                     };
@@ -1780,7 +1932,6 @@
             construirLeds();
             reiniciar();
             cargarInfoServidor();
-            conectarWebSocketCelular();
             window.requestAnimationFrame(bucle);
         })();
     </script>

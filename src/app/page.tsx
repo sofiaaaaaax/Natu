@@ -89,6 +89,15 @@ export default function HomePage() {
               <Activity size={18} />
               Abrir simulador
             </Link>
+            <a
+              href="/Exposicion/Expo11-18-2025/Expo.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="natu-btn-outline px-8 py-4 text-base"
+            >
+              <ExternalLink size={18} />
+              Abrir Expo.html
+            </a>
           </div>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-200">

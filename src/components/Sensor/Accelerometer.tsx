@@ -284,7 +284,8 @@ export default function Accelerometer({ threshold = 2.5, onVoltage }: Accelerome
       )}
 
       <p className="mt-4 text-center text-[0.68rem] leading-5 text-slate-400">
-        La señal se mapea de 0 a 5 V y se envía al mapa por Supabase Realtime. En iOS debes
+        La señal se mapea de 0 a 5 V y se envía al mapa y a la Diapositiva 8 por Supabase
+        Realtime: mueve el teléfono y verás la misma traza en el computador. En iOS debes
         tocar primero “Habilitar acelerómetro” y aceptar el permiso.
       </p>
     </div>

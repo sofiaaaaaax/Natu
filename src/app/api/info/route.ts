@@ -11,13 +11,25 @@ export function GET(request: Request) {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
   const base = configured || origin;
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || null;
+
   return NextResponse.json({
     ok: true,
     urlMovil: `${base}/sensor`,
     canal: "seismic-sensor",
     evento: "motion",
-    supabase: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    ),
+    supabase: Boolean(supabaseUrl && supabaseAnonKey),
+    // La llave anónima es pública por diseño; Expo.html la usa para
+    // escuchar el acelerómetro del celular en la Diapositiva 8.
+    supabaseUrl,
+    supabaseAnonKey,
+  }, {
+    headers: {
+      "Cache-Control": "no-store, max-age=0",
+      // Permite que Expo.html abierto en local use la configuración pública
+      // del despliegue para enlazar el celular con la Diapositiva 8.
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }

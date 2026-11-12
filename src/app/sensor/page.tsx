@@ -24,7 +24,7 @@ import type { MotionPayload, SensorStatus } from "@/lib/types";
 const statusCopy: Record<SensorStatus, string> = {
   idle: "Modo demo local (sin Supabase)",
   connecting: "Conectando con Supabase…",
-  connected: "Enlazado al mapa en tiempo real",
+  connected: "Enlazado al mapa y a la Diapositiva 8",
   error: "Sin conexión con Realtime",
 };
 
@@ -126,10 +126,10 @@ export default function SensorPage() {
             Cómo probarlo
           </h2>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Abre el mapa en el computador y pulsa “Conectar celular”.</li>
+            <li>Abre el mapa o la Diapositiva 8 en el computador y pulsa “Celular”.</li>
             <li>Escanea el código QR con la cámara del teléfono.</li>
             <li>Habilita el acelerómetro y sacude suavemente el dispositivo.</li>
-            <li>El sismograma del mapa y la alarma responderán en vivo.</li>
+            <li>El sismograma del mapa, la Diapositiva 8 y la alarma responderán en vivo.</li>
           </ol>
           <p className="mt-2 text-[0.7rem] text-slate-400">
             Si el acelerómetro no está disponible, mantén presionado el botón de simulación
@@ -152,18 +152,27 @@ export default function SensorPage() {
             <ArrowLeft size={16} />
             Volver al inicio
           </Link>
+          <a
+            href="/Exposicion/Expo11-18-2025/Expo.html#slide-demo"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-natu-ochre/50 bg-natu-ochre/15 px-4 py-3 text-sm font-extrabold text-natu-ochre transition hover:bg-natu-ochre hover:text-natu-dark sm:col-span-2"
+          >
+            <ExternalLink size={16} />
+            Ver Diapositiva 8 (Expo.html)
+          </a>
         </div>
 
         <p className="mt-6 text-center text-[0.68rem] leading-5 text-slate-500">
           Proyecto académico NATU · La información no sustituye los reportes oficiales del
           SGC.{" "}
           <a
-            href="/Exposicion/Expo11-18-2025/Expo.html"
+            href="/Exposicion/Expo11-18-2025/Expo.html#slide-demo"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-0.5 text-natu-sage hover:text-natu-ochre"
           >
-            Ver diapositivas
+            Ver Diapositiva 8
             <ExternalLink size={10} />
           </a>
         </p>

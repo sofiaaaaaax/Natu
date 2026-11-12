@@ -145,10 +145,13 @@ Configura las variables con `vercel env add` o desde el panel.
 ### Nota sobre la Diapositiva 8
 
 `Expo.html` conserva su demo local y su WebSocket legacy. En Vercel no hay
-servidores WebSocket persistentes, por lo que esa diapositiva no recibirá la
-señal del celular. La versión Next.js sí lo hace mediante `/sensor` + `/mapa`
-con Supabase Realtime. El QR de la exposición se alimenta de `/api/info`, que
-apunta a `/sensor` en el dominio actual.
+servidores WebSocket persistentes, por lo que la diapositiva usa Supabase
+Realtime (el mismo canal `seismic-sensor` que `/sensor` y `/mapa`). El QR de la
+exposición se alimenta de `/api/info`, que apunta a `/sensor` en el dominio
+actual y entrega la URL y la llave anónima de Supabase para que la
+**Diapositiva 8** reciba el acelerómetro del celular en vivo. Si se abre
+`Expo.html` en local y `/api/info` responde con `localhost`, el enlace usa
+`https://natu-six.vercel.app/sensor` para que el celular siempre pueda entrar.
 
 ---
 
