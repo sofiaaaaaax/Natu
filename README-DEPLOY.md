@@ -69,10 +69,10 @@ en el servidor, el origen de la petición.
 
 ### 3.3 Autenticación
 
-En **Authentication → Providers → Email**:
+En **Authentication → Sign In / Providers → Email**:
 
 - Habilita **Email**.
-- **Desactiva “Confirm email”** (Authentication → Providers → Email). El registro
+- **Desactiva “Confirm email”** (Authentication → Sign In / Providers → Email). El registro
   pide solo un nombre de usuario y la app crea un correo interno
   (`usuario@natu.app`), que no tiene buzón real. Si la confirmación está activa,
   la cuenta queda sin confirmar y el inicio de sesión falla.
@@ -212,7 +212,7 @@ Comprueba también:
 | El sensor no conecta                           | Revisa la consola, que Realtime esté habilitado y que el dominio esté permitido en Supabase. |
 | El QR apunta a `localhost`                     | Define `NEXT_PUBLIC_SITE_URL` con el dominio de producción y vuelve a desplegar.         |
 | El correo de recuperación va a `localhost`     | Agrega el dominio en **Authentication → URL Configuration → Redirect URLs**.             |
-| No puedo iniciar sesión tras registrarme       | Desactiva **Confirm email** en **Authentication → Providers → Email**. El registro usa un correo interno sin buzón (`usuario@natu.app`). |
+| No puedo iniciar sesión tras registrarme       | Desactiva **Confirm email** en **Authentication → Sign In / Providers → Email**. El registro usa un correo interno sin buzón (`usuario@natu.app`). |
 | El mapa no aparece                             | Leaflet se carga con `ssr: false`; revisa errores de hidratación o bloqueo de tiles.     |
 | No hay señal en el mapa                        | El teléfono y el computador deben usar el mismo proyecto Supabase y el mismo dominio.    |
 | El acelerómetro no responde en iPhone          | Debe pulsarse el botón de permiso tras una interacción del usuario y aceptar el diálogo. |

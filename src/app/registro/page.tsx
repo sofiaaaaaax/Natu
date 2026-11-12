@@ -103,7 +103,7 @@ export default function RegistroPage() {
       ) {
         setLoading(false);
         setError(
-          "Supabase intentó enviar un correo de confirmación. Desactiva “Confirm email” en Supabase → Authentication → Providers → Email y vuelve a intentarlo.",
+          "Supabase intentó enviar un correo de confirmación. Desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email y vuelve a intentarlo.",
         );
         return;
       }
@@ -140,7 +140,7 @@ export default function RegistroPage() {
 
     if (signInError.message.toLowerCase().includes("email not confirmed")) {
       setError(
-        "La cuenta se creó, pero Supabase está pidiendo confirmar un correo. Como el registro ahora es con nombre de usuario, desactiva “Confirm email” en Supabase → Authentication → Providers → Email. Si ya lo desactivaste y sigue apareciendo, elimina ese usuario en Authentication → Users y regístrate de nuevo.",
+        "La cuenta se creó, pero Supabase está pidiendo confirmar un correo. Como el registro ahora es con nombre de usuario, desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email. Si ya lo desactivaste y sigue apareciendo, elimina ese usuario en Authentication → Users y regístrate de nuevo.",
       );
       return;
     }
