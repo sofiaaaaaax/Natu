@@ -106,8 +106,15 @@ La conexión sensor → mapa usa **Supabase Realtime Broadcast Channels**, sin t
 ni SQL. No se requiere crear esquema.
 
 1. Ve a **Project Settings → Realtime** y verifica que Realtime esté habilitado.
-2. El canal es público y se llama `seismic-sensor`; el evento es `motion`.
-3. El payload es `{ "v": 0.0–5.0, "t": <timestamp ms> }`.
+2. Cada cuenta usa su propio canal `seismic-sensor:<uuid-del-usuario>`; el evento
+   sigue siendo `motion`. Así el movimiento de un celular solo aparece en el mapa
+   de esa cuenta y no se mezcla con el de otras personas.
+3. El QR que genera el mapa incluye `?canal=<uuid>&usuario=<nombre>` para que el
+   teléfono publique en el canal correcto aunque no tenga sesión iniciada.
+4. La Diapositiva 8 (`Expo.html`) lee la sesión de Supabase del navegador y usa el
+   mismo canal. Sin sesión crea una sala local persistida (`natu-sala-local`) para
+   mantener la prueba aislada por navegador.
+5. El payload es `{ "v": 0.0–5.0, "t": <timestamp ms> }`.
 
 Si tu proyecto tiene políticas estrictas de Realtime, habilita la extensión
 **Realtime** y permite conexiones anónimas para Broadcast.
@@ -158,13 +165,16 @@ Configura las variables con `vercel env add` o desde el panel.
 | `/login`, `/registro`, `/recuperar`    | Autenticación con Supabase Auth                        |
 | `/terminos`                            | Términos y condiciones                                 |
 | `/api/info`                            | Devuelve `urlMovil` para el QR de `Expo.html`          |
-| `/Exposicion/Expo11-18-2025/Expo.html` | Diapositivas originales (sin modificar)                |
+| `/Exposicion/Expo11-18-2025/Expo.html` | Diapositivas de la exposición con el sensor enlazado   |
 
 ### Nota sobre la Diapositiva 8
 
 `Expo.html` conserva su demo local y su WebSocket legacy. En Vercel no hay
 servidores WebSocket persistentes, por lo que la diapositiva usa Supabase
-Realtime (el mismo canal `seismic-sensor` que `/sensor` y `/mapa`). El QR de la
+Realtime. La diapositiva lee la sesión de Supabase guardada en el navegador y
+escucha el canal `seismic-sensor:<uuid-del-usuario>` de esa cuenta. Sin sesión
+crea una sala local persistida (`natu-sala-local`) y usa ese alcance en el QR,
+así que dos navegadores distintos no comparten movimiento. El QR de la
 exposición se alimenta de `/api/info`, que apunta a `/sensor` en el dominio
 actual y entrega la URL y la llave anónima de Supabase para que la
 **Diapositiva 8** reciba el acelerómetro del celular en vivo. Si se abre
@@ -186,13 +196,16 @@ actual y entrega la URL y la llave anónima de Supabase para que la
 
 ### Sensor móvil
 
-1. Abre `/mapa` en el computador y pulsa **Conectar celular**.
-2. Escanea el QR con el teléfono (misma red o dominio de Vercel).
-3. En `/sensor`, pulsa **Habilitar acelerómetro** (obligatorio en iOS).
-4. Sacude el teléfono: el voltaje cambia y el sismograma del mapa se pone verde
-   con la etiqueta **SENSOR EN VIVO**.
-5. Si supera el umbral, la alarma se activa en el mapa.
-6. Si no hay acelerómetro, mantén presionado el botón táctil de simulación.
+1. Inicia sesión en `/login` y abre `/mapa` en el computador.
+2. Pulsa **Conectar celular**: el QR incluye el canal de tu cuenta.
+3. Escanea el QR con el teléfono (misma red o dominio de Vercel).
+4. En `/sensor`, pulsa **Habilitar acelerómetro** (obligatorio en iOS).
+5. Sacude el teléfono: el voltaje cambia y el sismograma de tu mapa se pone
+   verde con la etiqueta **SENSOR EN VIVO**.
+6. Si supera el umbral, la alarma se activa en el mapa.
+7. Si no hay acelerómetro, mantén presionado el botón táctil de simulación.
+8. Prueba con otra cuenta en otro navegador: su movimiento no debe aparecer en
+   tu mapa ni en tu Diapositiva 8.
 
 ### Autenticación
 
@@ -230,6 +243,8 @@ Comprueba también:
 | No puedo iniciar sesión tras registrarme       | Desactiva **Confirm email** en **Authentication → Sign In / Providers → Email**. El registro usa un correo interno sin buzón (`usuario@natu.app`). |
 | El mapa no aparece                             | Leaflet se carga con `ssr: false`; revisa errores de hidratación o bloqueo de tiles.     |
 | No hay señal en el mapa                        | El teléfono y el computador deben usar el mismo proyecto Supabase y el mismo dominio.    |
+| Se mezcla el movimiento de otras personas      | Abre el QR desde el mapa de tu cuenta (lleva `?canal=<uuid>`). Sin sesión, el mapa muestra un aviso y no escucha ningún celular. |
+| La Diapositiva 8 no recibe el celular          | Debe abrirse en el mismo dominio donde iniciaste sesión, para que lea la sesión guardada. |
 | El acelerómetro no responde en iPhone          | Debe pulsarse el botón de permiso tras una interacción del usuario y aceptar el diálogo. |
 | Error de tipos en el build                     | Ejecuta `npm run typecheck` y corrige antes de desplegar.                                |
 

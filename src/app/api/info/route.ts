@@ -17,7 +17,9 @@ export function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     urlMovil: `${base}/sensor`,
-    canal: "seismic-sensor",
+    // El canal real es `seismic-sensor:<uuid-de-la-cuenta>`; el mapa agrega
+    // ese alcance al QR para que el celular publique solo en tu cuenta.
+    canal: "seismic-sensor:<tu-cuenta>",
     evento: "motion",
     supabase: Boolean(supabaseUrl && supabaseAnonKey),
     // La llave anónima es pública por diseño; Expo.html la usa para

@@ -37,4 +37,4 @@ export interface QuakeConfig {
   duration: number;
 }
 
-export type SensorStatus = "idle" | "connecting" | "connected" | "error";
+export type SensorStatus = "idle" | "no-account" | "connecting" | "connected" | "error";

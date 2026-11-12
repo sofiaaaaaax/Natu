@@ -1332,6 +1332,11 @@
             var conexionSupabaseIniciada = false;
             var historialCelular = [];
             var referenciaCelular = 0;
+            // Cada cuenta usa su propio canal. Sin sesión se usa una sala
+            // local persistida para que la exposición siga siendo individual.
+            var alcanceCelular = null;
+            var usuarioCelular = '';
+            var urlBaseCelular = '';
 
             var R_LED = 330;
             var R_BUZZER = 120;
@@ -1778,14 +1783,57 @@
             });
 
             // ---------- Conexión Móvil y Código QR ----------
+            // Limpia el identificador para que coincida con el canal que
+            // construye la app (`seismic-sensor:<alcance>`).
+            function alcanceSeguro(valor) {
+                return String(valor || 'demo').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'demo';
+            }
+
+            // Sala local persistida: se usa cuando Expo.html se abre sin sesión.
+            // Así varias personas en equipos distintos no comparten el mismo QR.
+            function salaLocalCelular() {
+                try {
+                    var guardada = localStorage.getItem('natu-sala-local');
+                    if (!guardada) {
+                        guardada = 'sala-' + Math.random().toString(36).slice(2, 10);
+                        localStorage.setItem('natu-sala-local', guardada);
+                    }
+                    return alcanceSeguro(guardada);
+                } catch (e) {
+                    return alcanceSeguro('sala-' + Date.now().toString(36));
+                }
+            }
+
+            function usuarioDeSesion(user) {
+                if (!user) return '';
+                if (user.user_metadata && user.user_metadata.username) {
+                    return String(user.user_metadata.username);
+                }
+                return String(user.email || '').split('@')[0];
+            }
+
+            function urlSensorConAlcance(url) {
+                if (!alcanceCelular) return url;
+                try {
+                    var destino = new URL(url, window.location.href);
+                    destino.searchParams.set('canal', alcanceCelular);
+                    if (usuarioCelular) destino.searchParams.set('usuario', usuarioCelular);
+                    return destino.toString();
+                } catch (e) {
+                    return url;
+                }
+            }
+
             function actualizarEnlaceCelular(url) {
-                urlControlMovil = url;
+                if (url) urlBaseCelular = url;
+                var finalUrl = urlSensorConAlcance(url || urlBaseCelular);
+                urlControlMovil = finalUrl;
                 if (urlTextoCelular) {
-                    urlTextoCelular.textContent = url;
-                    if (urlTextoCelular.tagName === 'A') urlTextoCelular.href = url;
+                    urlTextoCelular.textContent = finalUrl;
+                    if (urlTextoCelular.tagName === 'A') urlTextoCelular.href = finalUrl;
                 }
                 if (imgQr) {
-                    imgQr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(url);
+                    imgQr.src = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' + encodeURIComponent(finalUrl);
                 }
             }
 
@@ -1796,10 +1844,11 @@
                 if (!url || /localhost|127\.0\.0\.1/i.test(url)) {
                     url = URL_MOVIL_PREDETERMINADA;
                 }
+                urlBaseCelular = url;
                 actualizarEnlaceCelular(url);
 
                 if (info && info.supabaseUrl && info.supabaseAnonKey) {
-                    conectarSupabaseCelular(info.supabaseUrl, info.supabaseAnonKey);
+                    conectarSupabaseCelular(info.supabaseUrl, info.supabaseAnonKey, url);
                     return true;
                 }
                 return false;
@@ -1840,42 +1889,88 @@
                     });
             }
 
-            // La Diapositiva 8 escucha el acelerómetro del celular por el mismo
-            // canal de Supabase Realtime que usa la página /sensor.
-            function conectarSupabaseCelular(url, key) {
+            // La Diapositiva 8 escucha el acelerómetro del celular por el canal
+            // de la cuenta. Con sesión usa el UUID del usuario; sin sesión usa
+            // una sala local persistida en este navegador.
+            function conectarSupabaseCelular(url, key, baseMovil) {
                 if (conexionSupabaseIniciada) return;
                 conexionSupabaseIniciada = true;
+                if (baseMovil) urlBaseCelular = baseMovil;
 
                 import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm')
                     .then(function (mod) {
                         supabaseCelular = mod.createClient(url, key, {
-                            auth: { persistSession: false, autoRefreshToken: false }
+                            // persistSession permite leer la sesión que la app
+                            // guardó en este mismo dominio (localStorage).
+                            auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
                         });
-                        canalSupabaseCelular = supabaseCelular.channel('seismic-sensor');
-                        canalSupabaseCelular
-                            .on('broadcast', { event: 'motion' }, function (mensaje) {
-                                var data = mensaje && mensaje.payload;
-                                if (!data || typeof data.v !== 'number') return;
-                                registrarMovimientoCelular(data.v);
+
+                        supabaseCelular.auth.getSession()
+                            .then(function (resultado) {
+                                var sesion = resultado && resultado.data ? resultado.data.session : null;
+                                var user = sesion && sesion.user ? sesion.user : null;
+                                iniciarCanalCelular(user ? user.id : salaLocalCelular(), usuarioDeSesion(user));
                             })
-                            .subscribe(function (estado) {
-                                if (estado === 'SUBSCRIBED') {
-                                    if (dotCelular) {
-                                        dotCelular.classList.add('activo');
-                                        dotCelular.title = 'Diapositiva 8 lista: esperando la señal del celular';
-                                    }
-                                } else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
-                                    if (dotCelular) {
-                                        dotCelular.classList.remove('activo');
-                                        dotCelular.title = 'Reintentando conexión con el celular';
-                                    }
-                                }
+                            .catch(function () {
+                                iniciarCanalCelular(salaLocalCelular(), '');
                             });
+
+                        supabaseCelular.auth.onAuthStateChange(function (_evento, sesion) {
+                            var user = sesion && sesion.user ? sesion.user : null;
+                            iniciarCanalCelular(user ? user.id : salaLocalCelular(), usuarioDeSesion(user));
+                        });
                     })
                     .catch(function () {
                         // Si el CDN no está disponible, conservamos el WebSocket local.
                         conexionSupabaseIniciada = false;
                         conectarWebSocketCelular();
+                    });
+            }
+
+            function iniciarCanalCelular(scope, usuario) {
+                var alcance = alcanceSeguro(scope);
+                var nombre = usuario || '';
+                if (alcance === alcanceCelular && nombre === usuarioCelular && canalSupabaseCelular) return;
+
+                var cambioDeCuenta = alcanceCelular !== null && alcanceCelular !== alcance;
+                alcanceCelular = alcance;
+                usuarioCelular = nombre;
+                actualizarEnlaceCelular(urlBaseCelular);
+
+                if (cambioDeCuenta) {
+                    // No mostrar movimiento viejo de otra cuenta.
+                    historialCelular = [];
+                    referenciaCelular = 0;
+                    voltajeCelular = 0;
+                    ultimaLecturaCelular = 0;
+                }
+
+                if (canalSupabaseCelular && supabaseCelular) {
+                    try { supabaseCelular.removeChannel(canalSupabaseCelular); } catch (e) {}
+                    canalSupabaseCelular = null;
+                }
+
+                canalSupabaseCelular = supabaseCelular.channel('seismic-sensor:' + alcance);
+                canalSupabaseCelular
+                    .on('broadcast', { event: 'motion' }, function (mensaje) {
+                        var data = mensaje && mensaje.payload;
+                        if (!data || typeof data.v !== 'number') return;
+                        registrarMovimientoCelular(data.v);
+                    })
+                    .subscribe(function (estado) {
+                        if (estado === 'SUBSCRIBED') {
+                            if (dotCelular) {
+                                dotCelular.classList.add('activo');
+                                dotCelular.title = usuarioCelular
+                                    ? 'Diapositiva 8 enlazada a @' + usuarioCelular
+                                    : 'Diapositiva 8 lista: esperando la señal del celular';
+                            }
+                        } else if (estado === 'CHANNEL_ERROR' || estado === 'TIMED_OUT') {
+                            if (dotCelular) {
+                                dotCelular.classList.remove('activo');
+                                dotCelular.title = 'Reintentando conexión con el celular';
+                            }
+                        }
                     });
             }
 

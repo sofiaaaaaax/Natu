@@ -25,9 +25,19 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
     })
   : null;
 
-/** Canal público de Supabase Realtime usado por el celular y el mapa. */
+/** Prefijo del canal público de Supabase Realtime usado por el celular. */
 export const SENSOR_CHANNEL = "seismic-sensor";
 export const SENSOR_EVENT = "motion";
+
+/**
+ * Cada cuenta (o sala de exposición) usa su propio canal para que el
+ * movimiento de un celular no se mezcle con el de otras personas.
+ * Ejemplo: `seismic-sensor:8f14e45f-...`.
+ */
+export function sensorChannelName(scope: string): string {
+  const clean = scope.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+  return `${SENSOR_CHANNEL}:${clean || "demo"}`;
+}
 
 export function getSiteUrl(): string {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;

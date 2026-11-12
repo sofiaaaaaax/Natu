@@ -22,26 +22,28 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import type { Session } from "@supabase/supabase-js";
 import SeismicMap from "@/components/Map/SeismicMap";
 import Seismograph from "@/components/Prototype/Seismograph";
 import CircuitLoop, { type CircuitMode } from "@/components/Prototype/CircuitLoop";
 import TransistorLoop from "@/components/Prototype/TransistorLoop";
 import {
-  SENSOR_CHANNEL,
   SENSOR_EVENT,
   getSiteUrl,
   isSupabaseConfigured,
+  sensorChannelName,
   supabase,
 } from "@/lib/supabaseClient";
 import { clamp, classifyDepth, classifyMagnitude } from "@/lib/seismic";
 import type { Epicenter, MotionPayload } from "@/lib/types";
 
-type RealtimeStatus = "idle" | "connecting" | "connected" | "error";
+type RealtimeStatus = "idle" | "no-session" | "connecting" | "connected" | "error";
 
 const realtimeLabels: Record<RealtimeStatus, string> = {
   idle: "Modo demo · sin Supabase",
+  "no-session": "Inicia sesión para conectar tu celular",
   connecting: "Conectando a Realtime…",
-  connected: "Realtime conectado",
+  connected: "Tu sensor en tiempo real",
   error: "Realtime no disponible",
 };
 
@@ -84,18 +86,80 @@ export default function MapaPage() {
   const [showQr, setShowQr] = useState(false);
   const [sensorUrl, setSensorUrl] = useState("");
   const [copied, setCopied] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionReady, setSessionReady] = useState(!isSupabaseConfigured);
 
-  // URL pública del sensor para el código QR (solo en el navegador).
+  // Sesión propia: cada cuenta usa su canal para no mezclar celulares.
   useEffect(() => {
-    setSensorUrl(`${getSiteUrl()}/sensor`);
+    if (!supabase) {
+      setSessionReady(true);
+      return;
+    }
+
+    let active = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      setSessionReady(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+      setSessionReady(true);
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  // Suscripción a las muestras del acelerómetro móvil.
+  const sensorScope = session?.user?.id ?? null;
+  const sessionUsername =
+    (session?.user?.user_metadata?.username as string | undefined) ||
+    session?.user?.email?.split("@")[0] ||
+    "";
+
+  // URL pública del sensor para el código QR (solo en el navegador).
+  // Incluye el canal de la cuenta para que el celular publique solo aquí.
   useEffect(() => {
-    if (!supabase) return;
+    const base = `${getSiteUrl()}/sensor`;
+    if (!sensorScope) {
+      setSensorUrl(base);
+      return;
+    }
+
+    const params = new URLSearchParams({ canal: sensorScope });
+    if (sessionUsername) params.set("usuario", sessionUsername);
+    setSensorUrl(`${base}?${params.toString()}`);
+  }, [sensorScope, sessionUsername]);
+
+  // Suscripción a las muestras del acelerómetro móvil de esta cuenta.
+  useEffect(() => {
+    if (!supabase) {
+      setRealtime("idle");
+      return;
+    }
+
+    if (!sessionReady) {
+      setRealtime("connecting");
+      return;
+    }
+
+    if (!sensorScope) {
+      setRealtime("no-session");
+      setLiveVoltage(null);
+      setLiveTimestamp(null);
+      liveTimestampRef.current = null;
+      return;
+    }
 
     let lastUi = 0;
-    const channel = supabase.channel(SENSOR_CHANNEL);
+    let active = true;
+    setRealtime("connecting");
+    const channel = supabase.channel(sensorChannelName(sensorScope));
 
     channel
       .on("broadcast", { event: SENSOR_EVENT }, ({ payload }) => {
@@ -112,15 +176,17 @@ export default function MapaPage() {
         setLiveTimestamp(now);
       })
       .subscribe((status) => {
+        if (!active) return;
         if (status === "SUBSCRIBED") setRealtime("connected");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") setRealtime("error");
         else setRealtime("connecting");
       });
 
     return () => {
+      active = false;
       if (supabase) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [sensorScope, sessionReady]);
 
   // Si el celular deja de enviar, vuelve al modo de simulación.
   useEffect(() => {
@@ -256,7 +322,7 @@ export default function MapaPage() {
             >
               {realtime === "connected" ? (
                 <Wifi size={14} />
-              ) : realtime === "error" || realtime === "idle" ? (
+              ) : realtime === "error" || realtime === "idle" || realtime === "no-session" ? (
                 <WifiOff size={14} />
               ) : (
                 <Radio size={14} className="animate-pulse" />
@@ -544,43 +610,82 @@ export default function MapaPage() {
             <h2 id="qr-title" className="mt-3 text-lg font-extrabold text-natu-green">
               Conecta tu celular
             </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Escanea el código con la cámara del teléfono. Debes abrir esta página desde una
-              URL accesible por el móvil (misma red o Vercel).
-            </p>
 
-            <div className="mx-auto mt-4 w-fit rounded-xl border border-slate-200 bg-white p-3">
-              {sensorUrl ? (
-                <QRCodeSVG value={sensorUrl} size={190} level="M" />
-              ) : (
-                <div className="grid h-[190px] w-[190px] place-items-center text-xs text-slate-400">
-                  Generando…
+            {isSupabaseConfigured && !sessionReady && (
+              <p className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-left text-[0.72rem] font-semibold leading-5 text-slate-500">
+                Comprobando tu sesión…
+              </p>
+            )}
+
+            {isSupabaseConfigured && sessionReady && !session && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left">
+                <p className="text-sm font-extrabold text-amber-900">
+                  Inicia sesión para conectar tu celular
+                </p>
+                <p className="mt-1 text-[0.72rem] font-semibold leading-5 text-amber-800">
+                  Cada cuenta recibe solo el movimiento de su propio teléfono. Si no
+                  inicias sesión, la señal podría mezclarse con la de otras personas.
+                </p>
+                <Link
+                  href="/login"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-natu-green px-3 py-2 text-xs font-extrabold text-white transition hover:bg-natu-dark"
+                >
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/registro"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-natu-green/40 px-3 py-2 text-xs font-bold text-natu-green transition hover:bg-natu-green/10"
+                >
+                  Crear una cuenta
+                </Link>
+              </div>
+            )}
+
+            {isSupabaseConfigured && sessionReady && session && (
+              <>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Escanea el código con la cámara del teléfono. Debes abrir esta página desde
+                  una URL accesible por el móvil (misma red o Vercel).
+                </p>
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[0.7rem] font-extrabold text-emerald-700">
+                  <Wifi size={12} />
+                  Solo tu cuenta: @{sessionUsername || "usuario"}
+                </p>
+
+                <div className="mx-auto mt-4 w-fit rounded-xl border border-slate-200 bg-white p-3">
+                  {sensorUrl ? (
+                    <QRCodeSVG value={sensorUrl} size={190} level="M" />
+                  ) : (
+                    <div className="grid h-[190px] w-[190px] place-items-center text-xs text-slate-400">
+                      Generando…
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            <p className="mt-3 break-all rounded-lg bg-slate-100 px-3 py-2 font-mono text-[0.7rem] text-slate-600">
-              {sensorUrl || "—"}
-            </p>
+                <p className="mt-3 break-all rounded-lg bg-slate-100 px-3 py-2 font-mono text-[0.7rem] text-slate-600">
+                  {sensorUrl || "—"}
+                </p>
 
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={copySensorUrl}
-                disabled={!sensorUrl}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-natu-green hover:text-natu-green disabled:opacity-50"
-              >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? "Enlace copiado" : "Copiar enlace"}
-              </button>
-              <Link
-                href="/sensor"
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-natu-green px-3 py-2 text-xs font-extrabold text-white transition hover:bg-natu-dark"
-              >
-                <Radio size={14} />
-                Abrir sensor en este dispositivo
-              </Link>
-            </div>
+                <div className="mt-4 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={copySensorUrl}
+                    disabled={!sensorUrl}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-natu-green hover:text-natu-green disabled:opacity-50"
+                  >
+                    {copied ? <Check size={14} /> : <Copy size={14} />}
+                    {copied ? "Enlace copiado" : "Copiar enlace"}
+                  </button>
+                  <Link
+                    href={sensorUrl || "/sensor"}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-natu-green px-3 py-2 text-xs font-extrabold text-white transition hover:bg-natu-dark"
+                  >
+                    <Radio size={14} />
+                    Abrir sensor en este dispositivo
+                  </Link>
+                </div>
+              </>
+            )}
 
             {!isSupabaseConfigured && (
               <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-left text-[0.68rem] font-semibold leading-4 text-amber-800">

@@ -14,17 +14,18 @@ import {
 } from "lucide-react";
 import Accelerometer from "@/components/Sensor/Accelerometer";
 import {
-  SENSOR_CHANNEL,
   SENSOR_EVENT,
   isSupabaseConfigured,
+  sensorChannelName,
   supabase,
 } from "@/lib/supabaseClient";
 import type { MotionPayload, SensorStatus } from "@/lib/types";
 
 const statusCopy: Record<SensorStatus, string> = {
   idle: "Modo demo local (sin Supabase)",
-  connecting: "Conectando con Supabase…",
-  connected: "Enlazado al mapa y a la Diapositiva 8",
+  "no-account": "Sin cuenta: abre el QR de tu mapa",
+  connecting: "Conectando con tu cuenta…",
+  connected: "Enlazado solo a tu cuenta",
   error: "Sin conexión con Realtime",
 };
 
@@ -32,10 +33,71 @@ export default function SensorPage() {
   const [status, setStatus] = useState<SensorStatus>(
     isSupabaseConfigured ? "connecting" : "idle",
   );
+  const [scope, setScope] = useState<string | null>(null);
+  const [scopeReady, setScopeReady] = useState(!isSupabaseConfigured);
+  const [scopeLabel, setScopeLabel] = useState("");
+  const [fromQr, setFromQr] = useState(false);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const connectedRef = useRef(false);
   const lastSendRef = useRef(0);
+
+  // Canal propio: prioriza el `?canal=` del QR (funciona aunque el celular
+  // no tenga sesión) y, si no viene, usa la sesión iniciada en el teléfono.
+  useEffect(() => {
+    if (!supabase) {
+      setScopeReady(true);
+      return;
+    }
+
+    let active = true;
+    const params = new URLSearchParams(window.location.search);
+    const canalQr = params.get("canal")?.trim();
+    const usuarioQr = params.get("usuario")?.trim();
+
+    if (canalQr) {
+      setScope(canalQr);
+      setScopeLabel(usuarioQr ? `@${usuarioQr}` : "QR del mapa");
+      setFromQr(true);
+      setScopeReady(true);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const user = data.session?.user;
+      if (user) {
+        setScope(user.id);
+        setScopeLabel(
+          `@${(user.user_metadata?.username as string | undefined) || user.email?.split("@")[0] || "usuario"}`,
+        );
+      } else {
+        setScope(null);
+        setScopeLabel("");
+      }
+      setScopeReady(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
+      const user = nextSession?.user;
+      if (user) {
+        setScope(user.id);
+        setScopeLabel(
+          `@${(user.user_metadata?.username as string | undefined) || user.email?.split("@")[0] || "usuario"}`,
+        );
+      } else {
+        setScope(null);
+        setScopeLabel("");
+      }
+      setScopeReady(true);
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -43,9 +105,24 @@ export default function SensorPage() {
       return;
     }
 
-    const channel = supabase.channel(SENSOR_CHANNEL);
+    if (!scopeReady) {
+      setStatus("connecting");
+      return;
+    }
+
+    if (!scope) {
+      connectedRef.current = false;
+      channelRef.current = null;
+      setStatus("no-account");
+      return;
+    }
+
+    let active = true;
+    setStatus("connecting");
+    const channel = supabase.channel(sensorChannelName(scope));
 
     channel.subscribe((state) => {
+      if (!active) return;
       const value = state as string;
       if (value === "SUBSCRIBED") {
         connectedRef.current = true;
@@ -62,11 +139,12 @@ export default function SensorPage() {
     channelRef.current = channel;
 
     return () => {
+      active = false;
       connectedRef.current = false;
       channelRef.current = null;
       if (supabase) supabase.removeChannel(channel);
     };
-  }, []);
+  }, [scope, scopeReady]);
 
   const handleVoltage = useCallback((value: number) => {
     const now = Date.now();
@@ -86,9 +164,11 @@ export default function SensorPage() {
       ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
       : status === "error"
         ? "border-red-400/30 bg-red-400/10 text-red-200"
-        : status === "connecting"
-          ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-          : "border-white/15 bg-white/5 text-slate-300";
+        : status === "no-account"
+          ? "border-natu-ochre/40 bg-natu-ochre/10 text-natu-ochre"
+          : status === "connecting"
+            ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+            : "border-white/15 bg-white/5 text-slate-300";
 
   return (
     <div className="sensor-shell min-h-[calc(100vh-64px)] px-4 py-8 text-slate-100 sm:px-6">
@@ -108,13 +188,45 @@ export default function SensorPage() {
         >
           {status === "connected" ? (
             <Wifi size={14} />
-          ) : status === "error" || status === "idle" ? (
+          ) : status === "error" || status === "idle" || status === "no-account" ? (
             <WifiOff size={14} />
           ) : (
             <Radio size={14} className="animate-pulse" />
           )}
           {statusCopy[status]}
         </div>
+
+        {status === "connected" && scopeLabel && (
+          <p className="mx-auto mt-2 w-fit rounded-full bg-white/5 px-3 py-1 text-[0.68rem] font-bold text-slate-300">
+            {fromQr ? "Canal del QR" : "Tu cuenta"}: {scopeLabel}
+          </p>
+        )}
+
+        {status === "no-account" && (
+          <div className="mt-4 rounded-2xl border border-natu-ochre/40 bg-natu-ochre/10 p-4 text-left text-[0.78rem] leading-6 text-amber-100">
+            <p className="text-sm font-extrabold text-natu-ochre">
+              Este sensor necesita una cuenta
+            </p>
+            <p className="mt-1">
+              Abre el mapa desde tu cuenta, pulsa <strong>“Conectar celular”</strong> y escanea
+              su código QR. También puedes iniciar sesión aquí y volver a cargar esta página.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-lg bg-natu-ochre px-3 py-2 text-xs font-extrabold text-natu-dark transition hover:bg-[#e0b487]"
+              >
+                Iniciar sesión
+              </Link>
+              <Link
+                href="/mapa"
+                className="inline-flex items-center justify-center rounded-lg border border-white/25 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/10"
+              >
+                Ir al mapa
+              </Link>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6">
           <Accelerometer onVoltage={handleVoltage} threshold={2.5} />
@@ -126,14 +238,15 @@ export default function SensorPage() {
             Cómo probarlo
           </h2>
           <ol className="mt-2 list-decimal space-y-1 pl-5">
-            <li>Abre el mapa o la Diapositiva 8 en el computador y pulsa “Celular”.</li>
-            <li>Escanea el código QR con la cámara del teléfono.</li>
+            <li>Inicia sesión en el computador y abre el mapa de tu cuenta.</li>
+            <li>Pulsa “Conectar celular” y escanea tu código QR con el teléfono.</li>
             <li>Habilita el acelerómetro y sacude suavemente el dispositivo.</li>
-            <li>El sismograma del mapa, la Diapositiva 8 y la alarma responderán en vivo.</li>
+            <li>El movimiento aparecerá solo en tu mapa y en tu Diapositiva 8.</li>
           </ol>
           <p className="mt-2 text-[0.7rem] text-slate-400">
-            Si el acelerómetro no está disponible, mantén presionado el botón de simulación
-            táctil para generar la señal igualmente.
+            Cada cuenta tiene su propio canal: el movimiento de otros celulares no altera tu
+            prototipo. Si el acelerómetro no está disponible, mantén presionado el botón de
+            simulación táctil para generar la señal igualmente.
           </p>
         </div>
 

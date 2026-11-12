@@ -54,8 +54,9 @@ export default function TerminosPage() {
           <p>
             La ruta <strong>/sensor</strong> solicita permiso para acceder al acelerómetro del
             dispositivo. Los valores de movimiento se convierten a un voltaje de 0 a 5 V y se
-            transmiten por un canal público de Supabase Realtime para alimentar el sismógrafo
-            del mapa. No se graba audio, video ni ubicación desde esa función.
+            transmiten por el canal exclusivo de tu cuenta en Supabase Realtime para alimentar
+            únicamente el sismógrafo de tu mapa. No se graba audio, video ni ubicación desde
+            esa función.
           </p>
         </div>
 
