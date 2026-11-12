@@ -28,24 +28,121 @@ export default function RegistroPage() {
     });
   }
 
+  async function completeSignIn(message: string) {
+    await celebrate();
+    setSuccess(message);
+    router.push("/mapa");
+    router.refresh();
+  }
+
+  async function signUpDirect(
+    client: NonNullable<typeof supabase>,
+    internalEmail: string,
+    cleanUsername: string,
+  ) {
+    const { data, error: authError } = await client.auth.signUp({
+      email: internalEmail,
+      password,
+      options: {
+        data: { username: cleanUsername },
+      },
+    });
+
+    if (authError) {
+      const message = authError.message.toLowerCase();
+
+      // Si el usuario ya existía (por ejemplo, de un intento anterior),
+      // probamos iniciar sesión con la misma contraseña.
+      if (message.includes("already")) {
+        const { error: retryError } = await client.auth.signInWithPassword({
+          email: internalEmail,
+          password,
+        });
+        setLoading(false);
+
+        if (!retryError) {
+          await completeSignIn("Sesión iniciada. Redirigiendo al mapa…");
+          return;
+        }
+
+        setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
+        return;
+      }
+
+      if (
+        message.includes("rate limit") ||
+        message.includes("confirmation") ||
+        message.includes("smtp")
+      ) {
+        setLoading(false);
+        setError(
+          "Supabase intentó enviar un correo de confirmación. Desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email o configura SUPABASE_SERVICE_ROLE_KEY.",
+        );
+        return;
+      }
+
+      setLoading(false);
+      setError(authError.message);
+      return;
+    }
+
+    if (data.session) {
+      setLoading(false);
+      await completeSignIn("¡Cuenta creada! Redirigiendo al mapa…");
+      return;
+    }
+
+    // Supabase no devolvió sesión. Puede ser que el nombre ya exista o que
+    // el proyecto tenga activada la confirmación por correo.
+    const { error: signInError } = await client.auth.signInWithPassword({
+      email: internalEmail,
+      password,
+    });
+    setLoading(false);
+
+    if (!signInError) {
+      await completeSignIn("¡Cuenta creada! Redirigiendo al mapa…");
+      return;
+    }
+
+    if (signInError.message.toLowerCase().includes("email not confirmed")) {
+      setError(
+        "La cuenta se creó, pero Supabase está pidiendo confirmar un correo. Desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email, o agrega SUPABASE_SERVICE_ROLE_KEY en Vercel.",
+      );
+      return;
+    }
+
+    if ((data.user?.identities?.length ?? 0) === 0) {
+      setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
+      return;
+    }
+
+    setError(
+      "No se pudo iniciar la sesión automáticamente. Ve a “Iniciar sesión” e intenta con tu nombre de usuario y contraseña.",
+    );
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!supabase) {
+    const client = supabase;
+    if (!client) {
       setError(
         "Supabase no está configurado. Agrega NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en .env.local.",
       );
       return;
     }
 
-    if (username.trim().length < 3) {
+    const cleanUsername = username.trim();
+
+    if (cleanUsername.length < 3) {
       setError("El nombre de usuario debe tener al menos 3 caracteres.");
       return;
     }
 
-    if (!USERNAME_PATTERN.test(username.trim())) {
+    if (!USERNAME_PATTERN.test(cleanUsername)) {
       setError(
         "El nombre de usuario solo puede tener letras, números, punto, guion y guion bajo (sin espacios ni acentos).",
       );
@@ -63,96 +160,76 @@ export default function RegistroPage() {
     }
 
     setLoading(true);
-    const internalEmail = usernameToEmail(username);
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: internalEmail,
-      password,
-      options: {
-        data: { username: username.trim() },
-      },
-    });
+    const internalEmail = usernameToEmail(cleanUsername);
 
-    if (authError) {
-      const message = authError.message.toLowerCase();
+    // Primero intenta crear la cuenta desde el servidor, que puede confirmarla
+    // automáticamente con la llave service_role. Si esa llave no está
+    // configurada, se usa el registro clásico de Supabase.
+    let payload: {
+      ok?: boolean;
+      configured?: boolean;
+      reason?: string;
+      message?: string;
+    } | null = null;
 
-      // Si el usuario ya existía (por ejemplo, de un intento anterior),
-      // probamos iniciar sesión con la misma contraseña.
-      if (message.includes("already")) {
-        const { error: retryError } = await supabase.auth.signInWithPassword({
-          email: internalEmail,
-          password,
-        });
-        setLoading(false);
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUsername, password }),
+      });
+      payload = await response.json().catch(() => null);
+    } catch {
+      payload = null;
+    }
 
-        if (!retryError) {
-          await celebrate();
-          setSuccess("Sesión iniciada. Redirigiendo al mapa…");
-          router.push("/mapa");
-          router.refresh();
-          return;
-        }
+    if (payload?.ok) {
+      const { error: signInError } = await client.auth.signInWithPassword({
+        email: internalEmail,
+        password,
+      });
+      setLoading(false);
 
-        setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
-        return;
-      }
-
-      if (
-        message.includes("rate limit") ||
-        message.includes("confirmation") ||
-        message.includes("smtp")
-      ) {
-        setLoading(false);
+      if (signInError) {
         setError(
-          "Supabase intentó enviar un correo de confirmación. Desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email y vuelve a intentarlo.",
+          "La cuenta se creó, pero no se pudo iniciar sesión automáticamente. Ve a “Iniciar sesión” e intenta con tu nombre de usuario y contraseña.",
         );
         return;
       }
 
+      await completeSignIn("¡Cuenta creada! Redirigiendo al mapa…");
+      return;
+    }
+
+    if (payload?.reason === "exists") {
+      const { error: retryError } = await client.auth.signInWithPassword({
+        email: internalEmail,
+        password,
+      });
       setLoading(false);
-      setError(authError.message);
-      return;
-    }
 
-    if (data.session) {
-      setLoading(false);
-      await celebrate();
-      setSuccess("¡Cuenta creada! Redirigiendo al mapa…");
-      router.push("/mapa");
-      router.refresh();
-      return;
-    }
+      if (!retryError) {
+        await completeSignIn("Sesión iniciada. Redirigiendo al mapa…");
+        return;
+      }
 
-    // Supabase no devolvió sesión. Puede ser que el nombre ya exista o que
-    // el proyecto tenga activada la confirmación por correo.
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: internalEmail,
-      password,
-    });
-    setLoading(false);
-
-    if (!signInError) {
-      await celebrate();
-      setSuccess("¡Cuenta creada! Redirigiendo al mapa…");
-      router.push("/mapa");
-      router.refresh();
-      return;
-    }
-
-    if (signInError.message.toLowerCase().includes("email not confirmed")) {
-      setError(
-        "La cuenta se creó, pero Supabase está pidiendo confirmar un correo. Como el registro ahora es con nombre de usuario, desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email. Si ya lo desactivaste y sigue apareciendo, elimina ese usuario en Authentication → Users y regístrate de nuevo.",
-      );
-      return;
-    }
-
-    if ((data.user?.identities?.length ?? 0) === 0) {
       setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
       return;
     }
 
-    setError(
-      "No se pudo iniciar la sesión automáticamente. Ve a “Iniciar sesión” e intenta con tu nombre de usuario y contraseña.",
-    );
+    if (payload?.reason === "validation") {
+      setLoading(false);
+      setError(payload.message ?? "Revisa los datos e intenta de nuevo.");
+      return;
+    }
+
+    if (payload?.reason === "error") {
+      setLoading(false);
+      setError(payload.message ?? "No se pudo crear la cuenta. Intenta de nuevo.");
+      return;
+    }
+
+    await signUpDirect(client, internalEmail, cleanUsername);
   }
 
   return (

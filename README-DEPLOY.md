@@ -85,6 +85,21 @@ En **Authentication → Sign In / Providers → Email**:
 
 Sin estas URLs, los enlaces de confirmación y recuperación redirigen a `localhost`.
 
+#### Alternativa si no puedes desactivar “Confirm email”
+
+El proyecto incluye el endpoint `/api/auth/register`, que crea y confirma la
+cuenta desde el servidor con la llave `service_role`. Para usarlo:
+
+1. En Supabase: **Project Settings → API Keys** (o **API**) → copia la llave
+   **`service_role`** / **secret**. Es secreta: no la compartas ni la pongas en
+   una variable `NEXT_PUBLIC_*`.
+2. En Vercel: **Project → Settings → Environment Variables** → agrega
+   `SUPABASE_SERVICE_ROLE_KEY` con esa llave (Production, Preview y Development).
+3. Vuelve a desplegar. El registro funcionará aunque “Confirm email” siga activo.
+
+Si la variable no existe, la app vuelve automáticamente al registro normal de
+Supabase (que requiere “Confirm email” desactivado).
+
 ### 3.4 Realtime (Broadcast)
 
 La conexión sensor → mapa usa **Supabase Realtime Broadcast Channels**, sin tablas
