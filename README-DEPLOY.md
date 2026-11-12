@@ -72,7 +72,10 @@ en el servidor, el origen de la petición.
 En **Authentication → Providers → Email**:
 
 - Habilita **Email**.
-- Define si quieres confirmación por correo (recomendado en producción).
+- **Desactiva “Confirm email”** (Authentication → Providers → Email). El registro
+  pide solo un nombre de usuario y la app crea un correo interno
+  (`usuario@natu.app`), que no tiene buzón real. Si la confirmación está activa,
+  la cuenta queda sin confirmar y el inicio de sesión falla.
 - En **Authentication → URL Configuration** agrega:
   - **Site URL**: `https://tu-dominio.vercel.app`
   - **Redirect URLs**:
@@ -178,9 +181,11 @@ actual y entrega la URL y la llave anónima de Supabase para que la
 
 ### Autenticación
 
-1. Regístrate en `/registro` (revisa el correo si la confirmación está activa).
-2. Inicia sesión en `/login`; la barra superior muestra el usuario.
-3. Cierra sesión y prueba `/recuperar` con un correo registrado.
+1. Regístrate en `/registro` con un nombre de usuario y contraseña (sin correo).
+2. Inicia sesión en `/login` con ese mismo nombre de usuario; la barra superior
+   muestra `@usuario`.
+3. Cierra sesión y prueba `/recuperar` solo con cuentas antiguas basadas en correo.
+   Las cuentas con nombre de usuario no tienen correo para recibir el enlace.
 
 ### Producción
 
@@ -207,6 +212,7 @@ Comprueba también:
 | El sensor no conecta                           | Revisa la consola, que Realtime esté habilitado y que el dominio esté permitido en Supabase. |
 | El QR apunta a `localhost`                     | Define `NEXT_PUBLIC_SITE_URL` con el dominio de producción y vuelve a desplegar.         |
 | El correo de recuperación va a `localhost`     | Agrega el dominio en **Authentication → URL Configuration → Redirect URLs**.             |
+| No puedo iniciar sesión tras registrarme       | Desactiva **Confirm email** en **Authentication → Providers → Email**. El registro usa un correo interno sin buzón (`usuario@natu.app`). |
 | El mapa no aparece                             | Leaflet se carga con `ssr: false`; revisa errores de hidratación o bloqueo de tiles.     |
 | No hay señal en el mapa                        | El teléfono y el computador deben usar el mismo proyecto Supabase y el mismo dominio.    |
 | El acelerómetro no responde en iPhone          | Debe pulsarse el botón de permiso tras una interacción del usuario y aceptar el diálogo. |

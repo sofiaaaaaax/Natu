@@ -5,12 +5,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, UserPlus } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
-import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
+import { USERNAME_PATTERN, usernameToEmail } from "@/lib/auth";
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 export default function RegistroPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -45,6 +45,13 @@ export default function RegistroPage() {
       return;
     }
 
+    if (!USERNAME_PATTERN.test(username.trim())) {
+      setError(
+        "El nombre de usuario solo puede tener letras, números, punto, guion y guion bajo (sin espacios ni acentos).",
+      );
+      return;
+    }
+
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
       return;
@@ -56,36 +63,95 @@ export default function RegistroPage() {
     }
 
     setLoading(true);
+    const internalEmail = usernameToEmail(username);
     const { data, error: authError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
+      email: internalEmail,
       password,
       options: {
         data: { username: username.trim() },
-        emailRedirectTo: `${getSiteUrl()}/login`,
       },
     });
-    setLoading(false);
 
     if (authError) {
-      setError(
-        authError.message.toLowerCase().includes("already registered")
-          ? "Ese correo ya está registrado. Inicia sesión o recupera tu contraseña."
-          : authError.message,
-      );
+      const message = authError.message.toLowerCase();
+
+      // Si el usuario ya existía (por ejemplo, de un intento anterior),
+      // probamos iniciar sesión con la misma contraseña.
+      if (message.includes("already")) {
+        const { error: retryError } = await supabase.auth.signInWithPassword({
+          email: internalEmail,
+          password,
+        });
+        setLoading(false);
+
+        if (!retryError) {
+          await celebrate();
+          setSuccess("Sesión iniciada. Redirigiendo al mapa…");
+          router.push("/mapa");
+          router.refresh();
+          return;
+        }
+
+        setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
+        return;
+      }
+
+      if (
+        message.includes("rate limit") ||
+        message.includes("confirmation") ||
+        message.includes("smtp")
+      ) {
+        setLoading(false);
+        setError(
+          "Supabase intentó enviar un correo de confirmación. Desactiva “Confirm email” en Supabase → Authentication → Providers → Email y vuelve a intentarlo.",
+        );
+        return;
+      }
+
+      setLoading(false);
+      setError(authError.message);
       return;
     }
 
-    await celebrate();
-
     if (data.session) {
+      setLoading(false);
+      await celebrate();
       setSuccess("¡Cuenta creada! Redirigiendo al mapa…");
       router.push("/mapa");
       router.refresh();
       return;
     }
 
-    setSuccess(
-      "¡Registro exitoso! Revisa tu correo electrónico y confirma tu cuenta para poder iniciar sesión.",
+    // Supabase no devolvió sesión. Puede ser que el nombre ya exista o que
+    // el proyecto tenga activada la confirmación por correo.
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: internalEmail,
+      password,
+    });
+    setLoading(false);
+
+    if (!signInError) {
+      await celebrate();
+      setSuccess("¡Cuenta creada! Redirigiendo al mapa…");
+      router.push("/mapa");
+      router.refresh();
+      return;
+    }
+
+    if (signInError.message.toLowerCase().includes("email not confirmed")) {
+      setError(
+        "La cuenta se creó, pero Supabase está pidiendo confirmar un correo. Como el registro ahora es con nombre de usuario, desactiva “Confirm email” en Supabase → Authentication → Providers → Email. Si ya lo desactivaste y sigue apareciendo, elimina ese usuario en Authentication → Users y regístrate de nuevo.",
+      );
+      return;
+    }
+
+    if ((data.user?.identities?.length ?? 0) === 0) {
+      setError("Ese nombre de usuario ya está registrado. Inicia sesión o elige otro.");
+      return;
+    }
+
+    setError(
+      "No se pudo iniciar la sesión automáticamente. Ve a “Iniciar sesión” e intenta con tu nombre de usuario y contraseña.",
     );
   }
 
@@ -105,8 +171,7 @@ export default function RegistroPage() {
       {!isSupabaseConfigured && (
         <div className="mb-5 rounded-xl border border-amber-300/50 bg-amber-300/15 px-4 py-3 text-xs leading-5 text-amber-100">
           <strong className="block text-amber-200">Modo demostración</strong>
-          Configura las variables de Supabase para habilitar el registro real con correo
-          de confirmación.
+          Configura las variables de Supabase para habilitar el registro real.
         </div>
       )}
 
@@ -125,25 +190,8 @@ export default function RegistroPage() {
             placeholder="Ej. juan_natu"
             className="natu-input"
           />
-        </div>
-
-        <div>
-          <label htmlFor="email" className="mb-1.5 block text-left text-xs font-bold uppercase tracking-wider text-slate-200">
-            Correo electrónico
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="nombre@gmail.com"
-            className="natu-input"
-          />
           <p className="mt-1.5 text-[0.7rem] leading-5 text-slate-300">
-            Usa un correo real: allí llegará la confirmación de la cuenta y los enlaces de
-            recuperación.
+            Sin espacios ni acentos. Es el nombre con el que iniciarás sesión.
           </p>
         </div>
 

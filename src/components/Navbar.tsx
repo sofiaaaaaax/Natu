@@ -192,7 +192,7 @@ export default function Navbar() {
           <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">
             {ready && user ? (
               <>
-                <span className="truncate text-xs text-slate-300">{user.email}</span>
+                <span className="truncate text-xs text-slate-300">@{displayName}</span>
                 <button
                   type="button"
                   onClick={signOut}

@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, Mail, RefreshCw } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
+import { looksLikeEmail } from "@/lib/auth";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 export default function RecuperarPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -51,8 +52,16 @@ export default function RecuperarPage() {
     }
 
     setLoading(true);
+    if (!looksLikeEmail(identifier)) {
+      setLoading(false);
+      setError(
+        "Las cuentas creadas con nombre de usuario no tienen un correo asociado, así que no podemos enviarte un enlace. Pide a un administrador que restablezca tu contraseña desde Supabase.",
+      );
+      return;
+    }
+
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
+      identifier.trim().toLowerCase(),
       { redirectTo: `${getSiteUrl()}/recuperar` },
     );
     setLoading(false);
@@ -134,21 +143,22 @@ export default function RecuperarPage() {
       {!recoveryMode ? (
         <form onSubmit={sendEmail} className="space-y-4">
           <p className="text-sm leading-6 text-slate-200">
-            Escribe el correo con el que te registraste. Te enviaremos un enlace seguro
-            para crear una nueva contraseña.
+            Si tu cuenta es antigua y usa correo, escribe ese correo y te enviaremos un
+            enlace seguro para crear una nueva contraseña. Las cuentas nuevas usan nombre
+            de usuario y no reciben correos.
           </p>
 
           <div>
-            <label htmlFor="email" className="mb-1.5 block text-left text-xs font-bold uppercase tracking-wider text-slate-200">
-              Correo electrónico
+            <label htmlFor="identifier" className="mb-1.5 block text-left text-xs font-bold uppercase tracking-wider text-slate-200">
+              Correo de la cuenta
             </label>
             <input
-              id="email"
+              id="identifier"
               type="email"
               autoComplete="email"
               required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              value={identifier}
+              onChange={(event) => setIdentifier(event.target.value)}
               placeholder="nombre@gmail.com"
               className="natu-input"
             />
@@ -240,7 +250,7 @@ export default function RecuperarPage() {
             className="flex w-full items-center justify-center gap-2 text-center text-xs font-semibold text-slate-300 hover:text-natu-ochre hover:underline"
           >
             <RefreshCw size={13} />
-            Usar otro correo
+            Volver al formulario
           </button>
         </form>
       )}

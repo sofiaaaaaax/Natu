@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 import AuthShell from "@/components/AuthShell";
+import { loginIdentifierToEmail } from "@/lib/auth";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37,16 +38,19 @@ export default function LoginPage() {
 
     setLoading(true);
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: loginIdentifierToEmail(identifier),
       password,
     });
     setLoading(false);
 
     if (authError) {
+      const message = authError.message.toLowerCase();
       setError(
-        authError.message === "Invalid login credentials"
-          ? "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo."
-          : authError.message,
+        message.includes("invalid login credentials")
+          ? "Usuario o contraseña incorrectos. Verifica tus datos e intenta de nuevo."
+          : message.includes("email not confirmed")
+            ? "Supabase está exigiendo confirmar un correo para esta cuenta. Desactiva “Confirm email” en Supabase → Authentication → Sign In / Providers → Email."
+            : authError.message,
       );
       return;
     }
@@ -79,19 +83,22 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="mb-1.5 block text-left text-xs font-bold uppercase tracking-wider text-slate-200">
-            Correo electrónico
+          <label htmlFor="identifier" className="mb-1.5 block text-left text-xs font-bold uppercase tracking-wider text-slate-200">
+            Nombre de usuario
           </label>
           <input
-            id="email"
-            type="email"
-            autoComplete="email"
+            id="identifier"
+            type="text"
+            autoComplete="username"
             required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="nombre@gmail.com"
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            placeholder="Tu nombre de usuario"
             className="natu-input"
           />
+          <p className="mt-1.5 text-[0.7rem] leading-5 text-slate-300">
+            También puedes entrar con tu correo si tu cuenta es antigua.
+          </p>
         </div>
 
         <div>
