@@ -12,7 +12,9 @@ interface SeismographProps {
   onAlarm: () => void;
   onReset: () => void;
   onSimulate: (intensity: number) => void;
-  quake: { id: number; intensity: number } | null;
+  /** Intensidad (%) calculada desde la magnitud del Control de sismos. */
+  intensity: number;
+  quake: { id: number; intensity: number; duration: number } | null;
   resetKey: number;
 }
 
@@ -24,15 +26,6 @@ interface Readout {
 }
 
 const WINDOW_SECONDS = 6;
-
-function peakOfPackage(amplitude: number): number {
-  let max = 0;
-  for (let d = 0; d <= 4; d += 0.005) {
-    const value = Math.abs(amplitude * Math.exp(-d / 1.1) * Math.sin(2 * Math.PI * 1.6 * d));
-    if (value > max) max = value;
-  }
-  return max;
-}
 
 function adcLevel(value: number, bits: number, live: boolean): number {
   const levels = Math.pow(2, bits);
@@ -53,12 +46,12 @@ export default function Seismograph({
   onAlarm,
   onReset,
   onSimulate,
+  intensity,
   quake,
   resetKey,
 }: SeismographProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [intensity, setIntensity] = useState(80);
   const [bits, setBits] = useState(8);
   const [readout, setReadout] = useState<Readout>({
     peak: "0.00 V",
@@ -79,6 +72,7 @@ export default function Seismograph({
   const clockRef = useRef(0);
   const modeRef = useRef<"sim" | "live">("sim");
   const simStartRef = useRef(-1);
+  const simDurationRef = useRef(10);
   const amplitudeRef = useRef(4.0);
   const peakSimRef = useRef(0);
   const peakRef = useRef(0);
@@ -130,9 +124,10 @@ export default function Seismograph({
     counterRef.current = 0;
     alarmFiredRef.current = false;
     amplitudeRef.current = 0.5 + (quake.intensity / 100) * 4.2;
-    peakSimRef.current = peakOfPackage(amplitudeRef.current);
+    // La simulación dura lo mismo que las ondas del mapa.
+    simDurationRef.current = Math.max(1, Math.min(60, quake.duration || 10));
+    peakSimRef.current = amplitudeRef.current;
     simStartRef.current = clockRef.current;
-    setIntensity(quake.intensity);
   }, [quake]);
 
   useEffect(() => {
@@ -148,9 +143,18 @@ export default function Seismograph({
       let value = noise;
       if (simStartRef.current >= 0) {
         const d = t - simStartRef.current;
-        if (d >= 0 && d <= 4) {
+        const duration = simDurationRef.current;
+        if (d >= 0 && d <= duration) {
+          // La señal mantiene la intensidad del Control de sismos durante toda
+          // la simulación; solo suaviza la entrada y la salida.
+          const fadeIn = Math.min(1, d / 0.15);
+          const fadeOut = Math.min(1, Math.max(0, (duration - d) / 0.2));
           value +=
-            amplitudeRef.current * Math.exp(-d / 1.1) * Math.sin(2 * Math.PI * 1.6 * d);
+            amplitudeRef.current *
+            fadeIn *
+            fadeOut *
+            (0.9 * Math.sin(2 * Math.PI * 1.6 * d) +
+              0.1 * Math.sin(2 * Math.PI * 3.2 * d + 0.5));
         }
       }
       return value;
@@ -315,7 +319,7 @@ export default function Seismograph({
 
       modeRef.current = isLive ? "live" : "sim";
 
-      if (simStartRef.current >= 0 && t - simStartRef.current > 4.5) {
+      if (simStartRef.current >= 0 && t - simStartRef.current > simDurationRef.current + 0.05) {
         simStartRef.current = -1;
       }
 
@@ -397,16 +401,10 @@ export default function Seismograph({
         </button>
 
         <label>
-          Intensidad
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={1}
-            value={intensity}
-            onChange={(event) => setIntensity(Number(event.target.value))}
-          />
-          <span className="font-mono text-xs font-bold text-indigo-600">{intensity} %</span>
+          Intensidad (mapa)
+          <span className="font-mono text-xs font-bold text-indigo-600">
+            {Math.round(intensity)} %
+          </span>
         </label>
 
         <label>

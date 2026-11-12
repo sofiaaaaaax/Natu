@@ -53,7 +53,11 @@ export default function MapaPage() {
   const [duration, setDuration] = useState(10);
   const [threshold, setThreshold] = useState(2.5);
   const [alarm, setAlarm] = useState(false);
-  const [quake, setQuake] = useState<{ id: number; intensity: number } | null>(null);
+  const [quake, setQuake] = useState<{
+    id: number;
+    intensity: number;
+    duration: number;
+  } | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [waveTick, setWaveTick] = useState(0);
   const [waveClear, setWaveClear] = useState(0);
@@ -140,7 +144,9 @@ export default function MapaPage() {
     }
 
     setShaking(true);
-    const seconds = clamp(durationRef.current, 1, 60);
+    // La duración se captura al iniciar la simulación para que el mapa y el
+    // sismógrafo terminen exactamente al mismo tiempo.
+    const seconds = clamp(quake.duration, 1, 60);
     const intervalMs = magnitudeRef.current > 6 ? 300 : 500;
 
     if (epicenter) setWaveTick((tick) => tick + 1);
@@ -173,7 +179,11 @@ export default function MapaPage() {
 
   const simulate = useCallback((intensity: number) => {
     setAlarm(false);
-    setQuake({ id: Date.now() + Math.random(), intensity: clamp(intensity, 0, 100) });
+    setQuake({
+      id: Date.now() + Math.random(),
+      intensity: clamp(intensity, 0, 100),
+      duration: clamp(durationRef.current, 1, 60),
+    });
   }, []);
 
   const intensityFromMagnitude = clamp(Math.round(((magnitude - 2) / 4) * 100), 15, 100);
@@ -494,6 +504,7 @@ export default function MapaPage() {
                 onAlarm={() => setAlarm(true)}
                 onReset={handleReset}
                 onSimulate={simulate}
+                intensity={intensityFromMagnitude}
                 quake={quake}
                 resetKey={resetKey}
               />
